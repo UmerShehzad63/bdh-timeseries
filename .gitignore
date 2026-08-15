@@ -1,0 +1,15 @@
+# Raw datasets
+data/raw/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Experiment outputs
+results/
+
+# Cloned external repositories
+src/models/bdh/BDH_GPU/
+src/models/s5/S5/
+src/models/smamba/S-D-Mamba/
+data/raw/Time-Series-Library/
