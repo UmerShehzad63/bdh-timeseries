@@ -181,7 +181,9 @@ def main():
         / f"bdh_{args.dataset}_{args.pred_len}.pt"
     )
 
-    start_time = time.time()
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    start_time = time.perf_counter()
 
     for epoch in range(1, args.epochs + 1):
 
@@ -257,7 +259,9 @@ def main():
                 print("Early stopping.")
                 break
 
-    training_time = time.time() - start_time
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    training_time = time.perf_counter() - start_time
 
     # --------------------------------------------------
     # LOAD BEST MODEL
