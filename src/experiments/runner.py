@@ -8,6 +8,8 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+import random
+import numpy as np
 
 import numpy as np
 import pandas as pd
@@ -193,6 +195,13 @@ class LSTMForecaster(nn.Module):
 
 
 def run_lstm(dataset: str, pred_len: int, seq_len: int = 96, batch_size: int = 32, train_epochs: int = 1, learning_rate: float = 1e-3, hidden_size: int = 128, num_layers: int = 2):
+    seed = 42
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
     if dataset not in DATASETS:
         raise ValueError(f"Unknown dataset: {dataset}")
 
@@ -224,13 +233,17 @@ def run_lstm(dataset: str, pred_len: int, seq_len: int = 96, batch_size: int = 3
     mean = train_raw.mean(axis=0, keepdims=True)
     std = train_raw.std(axis=0, keepdims=True)
     std[std < 1e-6] = 1.0
-    train = (train_raw - mean) / std
-    val = (val_raw - mean) / std
-    test = (test_raw - mean) / std
+    normalized = (values - mean) / std
+
+    # Use the same 60/20/20 target split while allowing each validation/test
+    # window to use the historical context immediately preceding its target.
+    train = normalized[:train_end]
+    val_context = normalized[train_end - seq_len:val_end]
+    test_context = normalized[val_end - seq_len:]
 
     train_ds = WindowDataset(train, seq_len, pred_len)
-    val_ds = WindowDataset(val, seq_len, pred_len)
-    test_ds = WindowDataset(test, seq_len, pred_len)
+    val_ds = WindowDataset(val_context, seq_len, pred_len)
+    test_ds = WindowDataset(test_context, seq_len, pred_len)
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=(device.type == "cuda"))
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=(device.type == "cuda"))
     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=(device.type == "cuda"))
@@ -349,7 +362,7 @@ if __name__ == "__main__":
     parser.add_argument("--seq_len", type=int, default=96)
     parser.add_argument("--pred_len", type=int, default=96)
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--train_epochs", type=int, default=1)
+    parser.add_argument("--train_epochs", type=int, default=10)
     parser.add_argument("--learning_rate", type=float, default=None)
     args = parser.parse_args()
 
