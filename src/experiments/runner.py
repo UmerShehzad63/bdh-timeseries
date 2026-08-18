@@ -325,8 +325,6 @@ def run_lstm(dataset: str, pred_len: int, seq_len: int = 96, batch_size: int = 3
             targets.append(y.numpy())
     pred = np.concatenate(predictions, axis=0)
     true = np.concatenate(targets, axis=0)
-    pred = pred * std + mean
-    true = true * std + mean
     mse = float(np.mean((pred - true) ** 2))
     mae = float(np.mean(np.abs(pred - true)))
     rmse = float(np.sqrt(mse))
