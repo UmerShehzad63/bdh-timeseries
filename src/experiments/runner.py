@@ -132,14 +132,52 @@ def run_tslib(model: str, dataset: str, pred_len: int, seq_len: int = 96, batch_
     log_path.write_text(output, encoding="utf-8")
 
     mse = mae = None
-    for line in reversed(output.splitlines()):
-        if "mse:" in line.lower() and "mae:" in line.lower():
-            try:
-                values = {part.split(":", 1)[0].strip().lower(): float(part.split(":", 1)[1].strip()) for part in line.split(",")}
-                mse, mae = values.get("mse"), values.get("mae")
-                break
-            except Exception:
-                pass
+
+    result_txt = TSLIB_ROOT / "result_long_term_forecast.txt"
+
+    if result_txt.exists():
+        text = result_txt.read_text(encoding="utf-8", errors="replace")
+
+        for line in reversed(text.splitlines()):
+            if "mse:" in line.lower() and "mae:" in line.lower():
+                try:
+                    values = {}
+                    for part in line.split(","):
+                        if ":" in part:
+                            key, value = part.split(":", 1)
+                            values[key.strip().lower()] = float(value.strip())
+
+                    mse = values.get("mse")
+                    mae = values.get("mae")
+
+                    if mse is not None and mae is not None:
+                        break
+                except (ValueError, TypeError):
+                    continue
+
+    # Fallback: some TSLib versions print the metrics directly to stdout.
+    if mse is None or mae is None:
+        for line in reversed(output.splitlines()):
+            if "mse:" in line.lower() and "mae:" in line.lower():
+                try:
+                    values = {}
+                    for part in line.split(","):
+                        if ":" in part:
+                            key, value = part.split(":", 1)
+                            values[key.strip().lower()] = float(value.strip())
+
+                    mse = values.get("mse")
+                    mae = values.get("mae")
+
+                    if mse is not None and mae is not None:
+                        break
+                except (ValueError, TypeError):
+                    continue
+    if completed.returncode == 0 and (mse is None or mae is None):
+        raise RuntimeError(
+            f"TSLib completed successfully but metrics could not be found. "
+            f"Expected file: {result_txt}"
+        )    
 
     result = {"model": model, "dataset": dataset, "seq_len": seq_len, "pred_len": pred_len, "variables": variables, "batch_size": batch_size, "train_epochs": train_epochs, "learning_rate": learning_rate, "test_mse": mse, "test_mae": mae, "test_rmse": float(np.sqrt(mse)) if mse is not None else None, "wall_time_sec": wall_time_sec, "gpu_compute_time_sec": None, "inference_time_sec": None, "trainable_parameters": None, "return_code": completed.returncode, "log_file": str(log_path)}
     result_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
